@@ -27,7 +27,7 @@ io.on('connection', function(socket) {
 		players.push({
 			id: socket.id,
 		});
-		io.clients[players[0].id].send({text: 'you can start', turn: true})
+		socket.broadcast.to(players[0].id).emit('start', 'for your eyes only');
 
 	} else {
 		//kick the player

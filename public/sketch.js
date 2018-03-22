@@ -8,6 +8,10 @@ socket.on('waiting', function(msg){
 	console.log(msg)
 });
 
+socket.on('message', function(msg){
+	console.log(msg)
+});
+
 socket.on('ready', msg => console.log(msg))
 
 function setup() {
