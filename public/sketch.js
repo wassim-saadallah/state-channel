@@ -2,6 +2,7 @@ let board = []
 let gs;
 let myTurn;
 let char;
+let winner;
 turnNum = 0;
 
 let socket = io();
@@ -78,29 +79,37 @@ function update(i, j) {
 	}
 	board[index].char = char == 'X' ? 'X' : 'O';
 	myTurn = !myTurn;
+	if(checkWinner()) {console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)}
 }
 
-
-function winner(){
-	return winnerQ(0,1,2)  // check for 3-in-a-row horizontally
-       ||  winnerQ(3,4,5) 
-       ||  winnerQ(6,7,8) 
-       ||  winnerQ(0,3,6)  // check for 3-in-a-row vertically
-       ||  winnerQ(1,4,7) 
-       ||  winnerQ(2,5,8) 
-       ||  winnerQ(0,4,8)  // check for 3-in-a-row diagonally
-       ||  winnerQ(6,4,2)
-       ||  stalemateQ();   // check for win by 'cat'
+	
+function checkWinner() {
+	return winnerQ(0, 1, 2) ||
+		winnerQ(3, 4, 5) ||
+		winnerQ(6, 7, 8) ||
+		winnerQ(0, 3, 6) ||
+		winnerQ(1, 4, 7) ||
+		winnerQ(2, 5, 8) ||
+		winnerQ(0, 4, 8) ||
+		winnerQ(6, 4, 2) ||
+		stalemateQ();
 }
 
-function winnerQ(p1, p2, p3)
-  {
-    var c1 = board[p1];
-    if (c1 == '-') return false;
-    var c2 = board[p2];
-    if (c1 != c2) return false;
-    var c3 = board[p];
-    if (c1 != c3) return false;
-    Game_Board.winner = c1;
-    return true;
-  }
+function winnerQ(p1, p2, p3) {
+	var c1 = board[p1].char;
+	if (c1 == '') return false;
+	var c2 = board[p2].char;
+	if (c1 != c2) return false;
+	var c3 = board[p3].char;
+	if (c1 != c3) return false;
+	winner = c1;
+	return true;
+}
+
+function stalemateQ() {
+	for (var i = 0; i < 9; i++) {
+		if (board[i].char == '') return false;
+	}
+	winner = "C";
+	return true;
+}
