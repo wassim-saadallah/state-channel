@@ -4,11 +4,16 @@ var http = require('http').Server(app);
 var io = require('socket.io')(http);
 
 var players = [];
-var turn = 0;
+var turnNumber = 0;
 
 
 
 app.use(express.static(__dirname + '/public'));
+app.use(function(req, res, next) {
+  res.header("Access-Control-Allow-Origin", "*");
+  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+  next();
+});
 
 
 app.get('/', function(req, res) {
@@ -17,30 +22,58 @@ app.get('/', function(req, res) {
 
 io.on('connection', function(socket) {
 	console.log('A user ' + socket.id + ' has connected !');
-
 	if (players.length == 0) {
-		players.push({	
+		players.push({
 			id: socket.id,
 		});
 		io.emit('waiting', 'waiting for another player');
+		console.log('current players : ' + players.slice(0, players.length).map(p => p.id))
 	} else if (players.length == 1) {
 		players.push({
 			id: socket.id,
 		});
-		socket.broadcast.to(players[0].id).emit('start', 'for your eyes only');
-
+		io.sockets.connected[players[0].id].emit('start', {
+			msg: 'You start',
+			turn: true,
+			char: 'X'
+		});
+		io.sockets.connected[players[1].id].emit('start', {
+			msg: 'Player 1 starts',
+			turn: false,
+			char: "O"
+		});
+		console.log('current players : ' + players.slice(0, players.length).map(p => p.id))
 	} else {
 		//kick the player
 		socket.disconnect();
 		console.log('the room is full');
 	}
 
-	console.log('current users = ' + io.sockets.clients((err, clients) => {
-		if (err) console.log(err);
-		console.log(clients);
-	}));
+
+	socket.on('turn', msg => {
+		console.log("recieved " + msg + "from " + socket.id);
+		for (var i = 0; i < players.length; i++) {
+			if (players[i].id == socket.id && turnNumber == msg.n - 1) {
+				console.log("emitting to " + players[1 - i].id)
+				io.sockets.connected[players[1 - i].id].emit('turn', {
+					i: msg.i,
+					j: msg.j,
+					n: msg.n
+				});
+				turnNumber = msg.n;
+			}
+		}
+	});
+
+
 	socket.on('disconnect', function() {
-		console.log('User' + socket.id + ' has disconnected !');
+		console.log('User ' + socket.id + ' has disconnected !');
+		for (var i = 0; i < players.length; i++) {
+			if (players[i].id == socket.id) {
+				players.splice(i, 1);
+				console.log('current players : ' + players.slice(0, players.length).map(p => p.id))
+			}
+		}
 	});
 });
 
