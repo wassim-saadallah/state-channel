@@ -10,9 +10,9 @@ var turnNumber = 0;
 
 app.use(express.static(__dirname + '/public'));
 app.use(function(req, res, next) {
-  res.header("Access-Control-Allow-Origin", "*");
-  res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-  next();
+	res.header("Access-Control-Allow-Origin", "*");
+	res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+	next();
 });
 
 
@@ -51,19 +51,31 @@ io.on('connection', function(socket) {
 
 
 	socket.on('turn', msg => {
-		console.log("recieved " + msg + "from " + socket.id);
+		console.log("recieved turn from" + socket.id);
 		for (var i = 0; i < players.length; i++) {
 			if (players[i].id == socket.id && turnNumber == msg.n - 1) {
-				console.log("emitting to " + players[1 - i].id)
+				console.log("emitting that turn to " + players[1 - i].id)
 				io.sockets.connected[players[1 - i].id].emit('turn', {
 					i: msg.i,
 					j: msg.j,
-					n: msg.n
+					n: msg.n,
+					s: msg.s
 				});
 				turnNumber = msg.n;
 			}
 		}
 	});
+
+
+	socket.on('public-key', msg => {
+		console.log("recieved public key from" + socket.id);
+		for (var i = 0; i < players.length; i++) {
+			if (players[i].id == socket.id) {
+				console.log("emitting public key to " + players[1 - i].id)
+				io.sockets.connected[players[1 - i].id].emit('public-key', msg);
+			}
+		}
+	})
 
 
 	socket.on('disconnect', function() {

@@ -1,28 +1,65 @@
+var rsa = forge.rsa;
+var pki = forge.pki;
+var keyPair;
+
 let board = []
 let gs;
 let myTurn;
 let char;
 let winner;
-turnNum = 0;
+let turnNum = 0;
+let socket;
+let pubKey;
 
-let socket = io();
+function preload() {
+	console.log('generating key pair');
+	rsa.generateKeyPair({
+		bits: 2048,
+		workers: 2
+	}, function(err, keypair) {
+		console.log("key pair generated");
+		keyPair = keypair;
+	});
 
-socket.on('waiting', msg => console.log(msg))
+	console.log('establishing connection')
 
-socket.on('start', msg => {
-	console.log(msg.msg + " char = " + msg.char);
-	myTurn = msg.turn;
-	char = msg.char;
-})
+	socket = io();
 
-socket.on('turn', msg => {
-	console.log(msg.i + " : " + msg.j);
-	let index = msg.i + msg.j * 3;
-	board[index].char = char == "X" ? 'O' : 'X';
-	myTurn = !myTurn;
-	turnNum = msg.n;
-	console.log(msg.i, msg.j, turnNum)
-})
+	socket.on('waiting', msg => console.log(msg))
+
+	socket.on('start', msg => {
+		console.log('the game has started ' + msg.msg + " char = " + msg.char);
+		myTurn = msg.turn;
+		char = msg.char;
+
+		let pem = pki.publicKeyToPem(keyPair.publicKey);
+		console.log("sending pem of public key")
+		socket.emit('public-key', pem);
+	})
+
+	socket.on('turn', msg => {
+		console.log(msg.i + " : " + msg.j);
+		let index = msg.i + msg.j * 3;
+		board[index].char = char == "X" ? 'O' : 'X';
+		myTurn = !myTurn;
+		turnNum = msg.n;
+		console.log('trying to verify ' + msg.s);
+		var md = forge.md.sha256.create();
+		md.update(msg.i + " " + msg.j + " " + msg.n, 'utf8');
+		var verified = pubKey.verify(md.digest().bytes(), msg.s);
+		console.log(verified);
+
+		if (checkWinner()) {
+			console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)
+		}
+	})
+
+	socket.on('public-key', pem => {
+		pubKey = pki.publicKeyFromPem(pem);
+		console.log('recieved public key \n' + pem);
+	})
+}
+
 
 function setup() {
 	// put setup code here
@@ -66,23 +103,29 @@ function mousePressed() {
 }
 
 
-function update(i, j) {
+function update(i,	 j) {
 	let index = i + j * 3;
 	if (board[index].char == "") {
 		turnNum++;
 		console.log(i, j, turnNum)
+		var md = forge.md.sha256.create();
+		md.update(i + " " + j + " " + turnNum, 'utf8');
+		var signature = keyPair.privateKey.sign(md);
 		socket.emit('turn', {
 			n: turnNum,
 			i: i,
-			j: j
+			j: j,
+			s: signature
 		})
 	}
 	board[index].char = char == 'X' ? 'X' : 'O';
 	myTurn = !myTurn;
-	if(checkWinner()) {console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)}
+	if (checkWinner()) {
+		console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)
+	}
 }
 
-	
+
 function checkWinner() {
 	return winnerQ(0, 1, 2) ||
 		winnerQ(3, 4, 5) ||
