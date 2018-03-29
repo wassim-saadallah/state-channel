@@ -10,6 +10,7 @@ let winner;
 let turnNum = 0;
 let socket;
 let pubKey;
+let latestState;
 
 function preload() {
 	console.log('generating key pair');
@@ -47,7 +48,12 @@ function preload() {
 		var md = forge.md.sha256.create();
 		md.update(msg.i + " " + msg.j + " " + msg.n, 'utf8');
 		var verified = pubKey.verify(md.digest().bytes(), msg.s);
-		console.log(verified);
+		if (verified) {
+			console.log('the message is verified ... signing the message')
+			var md = forge.md.sha256.create();
+			md.update(msg.s, 'utf8');
+			latestState = keyPair.privateKey.sign(md);
+		}
 
 		if (checkWinner()) {
 			console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)
@@ -103,7 +109,7 @@ function mousePressed() {
 }
 
 
-function update(i,	 j) {
+function update(i, j) {
 	let index = i + j * 3;
 	if (board[index].char == "") {
 		turnNum++;
