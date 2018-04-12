@@ -11,6 +11,7 @@ let turnNum = 0;
 let socket;
 let pubKey;
 let latestState;
+let signedStates = [];
 
 function preload() {
 	console.log('generating key pair');
@@ -44,15 +45,13 @@ function preload() {
 		board[index].char = char == "X" ? 'O' : 'X';
 		myTurn = !myTurn;
 		turnNum = msg.n;
-		console.log('trying to verify ' + msg.s);
+		console.log('trying to verify the signed message ...');
 		var md = forge.md.sha256.create();
 		md.update(msg.i + " " + msg.j + " " + msg.n, 'utf8');
 		var verified = pubKey.verify(md.digest().bytes(), msg.s);
 		if (verified) {
-			console.log('the message is verified ... signing the message')
-			var md = forge.md.sha256.create();
-			md.update(msg.s, 'utf8');
-			latestState = keyPair.privateKey.sign(md);
+			signedStates.push(msg)
+			console.log(signedStates);
 		}
 
 		if (checkWinner()) {
