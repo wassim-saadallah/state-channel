@@ -4,7 +4,6 @@ var http = require('http').Server(app);
 var io = require('socket.io')(http);
 
 var players = [];
-var turnNumber = 0;
 
 
 
@@ -53,26 +52,31 @@ io.on('connection', function(socket) {
 	socket.on('turn', msg => {
 		console.log("recieved turn from" + socket.id);
 		for (var i = 0; i < players.length; i++) {
-			if (players[i].id == socket.id && turnNumber == msg.n - 1) {
+			if (players[i].id == socket.id) {
 				console.log("emitting that turn to " + players[1 - i].id)
-				io.sockets.connected[players[1 - i].id].emit('turn', {
-					i: msg.i,
-					j: msg.j,
-					n: msg.n,
-					s: msg.s
-				});
-				turnNumber = msg.n;
+				io.sockets.connected[players[1 - i].id].emit('turn', msg);
 			}
 		}
 	});
 
 
-	socket.on('public-key', msg => {
-		console.log("recieved public key from" + socket.id);
+	socket.on('address', msg => {
+		console.log("recieved address from" + socket.id);
 		for (var i = 0; i < players.length; i++) {
 			if (players[i].id == socket.id) {
-				console.log("emitting public key to " + players[1 - i].id)
-				io.sockets.connected[players[1 - i].id].emit('public-key', msg);
+				console.log("emitting address to " + players[1 - i].id)
+				io.sockets.connected[players[1 - i].id].emit('address', msg);
+			}
+		}
+	})
+
+
+	socket.on('last-move', msg => {
+		console.log("recieved address from" + socket.id);
+		for (var i = 0; i < players.length; i++) {
+			if (players[i].id == socket.id) {
+				console.log("emitting last move to " + players[1 - i].id)
+				io.sockets.connected[players[1 - i].id].emit('last-move', msg);
 			}
 		}
 	})
@@ -89,6 +93,6 @@ io.on('connection', function(socket) {
 	});
 });
 
-http.listen(3000, function() {
-	console.log('listening on *:3000');
+http.listen(4000, function() {
+	console.log('listening on *:4000');
 });

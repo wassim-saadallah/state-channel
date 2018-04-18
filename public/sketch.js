@@ -1,68 +1,120 @@
-var rsa = forge.rsa;
-var pki = forge.pki;
-var keyPair;
+let web3;
+let account;
+let otherAccount;
+let waiting = false;
 
 let board = []
 let gs;
 let myTurn;
-let char;
 let winner;
 let turnNum = 0;
 let socket;
-let pubKey;
-let latestState;
-let signedStates = [];
+let mySignedStates = [];
+let hisSignedStates = [];
+let signedMove;
 
 function preload() {
-	console.log('generating key pair');
-	rsa.generateKeyPair({
-		bits: 2048,
-		workers: 2
-	}, function(err, keypair) {
-		console.log("key pair generated");
-		keyPair = keypair;
-	});
 
-	console.log('establishing connection')
+	//get account address
+	account = new URL(window.location.href).searchParams.get('a');
+	console.log('address : ' + account)
+
+	//connect to node
+	console.log('establishing connection with ethereum node...')
+	web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
+
+	//unlocking account
+	console.log('unlocking account...')
+	let unlocked = web3.personal.unlockAccount(account, "", 0)
+	console.log(unlocked);
+
+	//connect to socketIO server
+	console.log('establishing connection with socket server...');
 
 	socket = io();
 
-	socket.on('waiting', msg => console.log(msg))
+	socket.on('waiting', msg => {
+		console.log(msg);
+		waiting = true;
+		//send transaction to open state channel
+	})
 
 	socket.on('start', msg => {
 		console.log('the game has started ' + msg.msg + " char = " + msg.char);
 		myTurn = msg.turn;
 		char = msg.char;
+		socket.emit('address', account);
+	})
 
-		let pem = pki.publicKeyToPem(keyPair.publicKey);
-		console.log("sending pem of public key")
-		socket.emit('public-key', pem);
+	socket.on('address', pem => {
+		console.log('recieved address \n' + pem);
+		otherAccount = pem;
+		if (!waiting) {
+			//send transaction to join the channel
+		}
 	})
 
 	socket.on('turn', msg => {
-		console.log(msg.i + " : " + msg.j);
-		let index = msg.i + msg.j * 3;
-		board[index].char = char == "X" ? 'O' : 'X';
-		myTurn = !myTurn;
-		turnNum = msg.n;
+
 		console.log('trying to verify the signed message ...');
-		var md = forge.md.sha256.create();
-		md.update(msg.i + " " + msg.j + " " + msg.n, 'utf8');
-		var verified = pubKey.verify(md.digest().bytes(), msg.s);
-		if (verified) {
-			signedStates.push(msg)
-			console.log(signedStates);
+		console.log(msg);
+
+		if (verified(msg)) {
+			console.log(hisSignedStates);
+			let b = msg.m.split('');
+			for (let i = 0; i < 9; i++) {
+				console.log(b[i]);
+				board[i].char = b[i] == "_" ? "" : b[i];
+			}
+			myTurn = !myTurn;
+			turnNum = parseInt(b[9]);
+			signedMove = sign(turnNum);
+			mySignedStates.push(signedMove);
+			if (msg.sm)
+				hisSignedStates.push(msg.sm);
+			hisSignedStates.push({
+				message: msg.m,
+				signature: msg.s
+			})
 		}
 
 		if (checkWinner()) {
-			console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)
+			console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner);
+			if (mySignedStates.length == hisSignedStates.length) {
+				//send transaction to close the state channel
+				let a1 = mySignedStates[4].signature;
+				let a2 = hisSignedStates[4].signature;
+
+				let sha = web3.sha3(mySignedStates[4].message)
+
+				let r1 = '0x' + a1.substring(2, 66);
+				let s1 = '0x' + a1.substring(66, 130);
+				let v1 = web3.toDecimal('0x' + a1.substring(130,132));
+
+				let r2 = '0x' + a2.substring(2, 66);
+				let s2 = '0x' + a2.substring(66, 130);
+				let v2 = web3.toDecimal('0x' + a2.substring(130,132));
+
+				console.log("*************************************************************")
+				console.log(`"${sha}", "${r1}", "${s1}", ${v1}, "${r2}", "${s2}", ${v2}`)
+
+				//send the last state to the other player
+				socket.emit('last-move', mySignedStates[mySignedStates.length - 1])
+			}
 		}
 	})
 
-	socket.on('public-key', pem => {
-		pubKey = pki.publicKeyFromPem(pem);
-		console.log('recieved public key \n' + pem);
+	socket.on('last-move', msg => {
+		hisSignedStates.push(msg)
 	})
+}
+
+function verified(msg) {
+	//TODO : add verification
+	let cond = false;
+	let sha = web3.sha3(msg.m);
+	console.log(sha, msg.s)
+	return web3.personal.ecRecover(sha, msg.s) == otherAccount;
 }
 
 
@@ -107,26 +159,47 @@ function mousePressed() {
 	}
 }
 
+function encode_board() {
+	return board.map(s => s.char != "" ? s.char : "_").join("");
+}
+
+
+function sign(turnNum) {
+	let message = encode_board() + turnNum;
+	let hashedMessage = web3.sha3(message);
+	let signature = web3.eth.sign(account, hashedMessage);
+	return {
+		message,
+		signature
+	}
+}
 
 function update(i, j) {
 	let index = i + j * 3;
 	if (board[index].char == "") {
+		board[index].char = char == 'X' ? 'X' : 'O';
 		turnNum++;
 		console.log(i, j, turnNum)
-		var md = forge.md.sha256.create();
-		md.update(i + " " + j + " " + turnNum, 'utf8');
-		var signature = keyPair.privateKey.sign(md);
+
+		let {
+			message,
+			signature
+		} = sign(turnNum);
+		mySignedStates.push({
+			message,
+			signature
+		})
+		console.log("{\n\t" + message + "\n\t" + signature + "\n}")
 		socket.emit('turn', {
-			n: turnNum,
-			i: i,
-			j: j,
-			s: signature
+			m: message,
+			s: signature,
+			sm: signedMove
 		})
 	}
-	board[index].char = char == 'X' ? 'X' : 'O';
+
 	myTurn = !myTurn;
 	if (checkWinner()) {
-		console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)
+		console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner);
 	}
 }
 
