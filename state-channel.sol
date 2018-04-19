@@ -1,3 +1,5 @@
+//http://remix.ethereum.org/#optimize=false&version=soljson-v0.4.22+commit.4cb486ee.js
+
 pragma solidity ^0.4.0;
 
 contract StateChannel {
@@ -28,30 +30,30 @@ contract StateChannel {
     
     
     
-    function openChannel() public returns(State){
+    function openChannel() public returns(address){
         player1 = msg.sender;
-        state = State.PENDING;
-        return state;
+        //state = State.PENDING;
+        return player1;
     }
 
     
     
-    function joinChannel() public {
-        if(state != State.PENDING) revert();
-        if(msg.sender == player1) revert();
+    function joinChannel() public returns(address) {
+        if(state != State.PENDING) revert('bad state');
+        if(msg.sender == player1) revert('do not open a state channel with yourself');
         player2 = msg.sender;
         state = State.OPENED;
         emit channelOpened(player1, player2);
+        return player2;
     }
     
     function closeChannel(bytes32 latestStateHash, bytes32 _r1, bytes32 _s1, uint8 _v1, bytes32 _r2, bytes32 _s2, uint8 _v2) public returns (bytes32){
-        
-        if(msg.sender != player1 || msg.sender != player2){
+        /*if(msg.sender != player1 || msg.sender != player2){
             revert();
         }
         if(state != State.OPENED){
             revert();
-        }
+        }*/
         bytes memory prefix = "\x19Ethereum Signed Message:\n32";
         bytes32 prefixedHash = keccak256(prefix, latestStateHash);
         a1 = ecrecover(prefixedHash, _v1, _r1, _s1);
@@ -61,7 +63,6 @@ contract StateChannel {
                 revert();
             }
         }
-        
         finalState = latestStateHash;
         emit channelClosed(player1, player2, finalState);
         return finalState;

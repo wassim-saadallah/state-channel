@@ -15,18 +15,19 @@ let signedMove;
 
 function preload() {
 
-	//get account address
-	account = new URL(window.location.href).searchParams.get('a');
-	console.log('address : ' + account)
-
 	//connect to node
 	console.log('establishing connection with ethereum node...')
 	web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
 
+	//get account address and unlock it
+	account = new URL(window.location.href).searchParams.get('a');
+
 	//unlocking account
 	console.log('unlocking account...')
-	let unlocked = web3.personal.unlockAccount(account, "", 0)
-	console.log(unlocked);
+	let unlocked = web3.personal.unlockAccount(account, "wassim", 0)
+	if(unlocked) console.log('unlocked');	
+	else console.log('error unlocking the accounts');
+
 
 	//connect to socketIO server
 	console.log('establishing connection with socket server...');
@@ -37,6 +38,14 @@ function preload() {
 		console.log(msg);
 		waiting = true;
 		//send transaction to open state channel
+		statechannelInstance.openChannel.call({
+			from: account
+		}, function(err, res) {
+			if (err) console.log(err)
+			if (res && !err) {
+				console.log('I opened the channel and my address being : ' + res)
+			}
+		})
 	})
 
 	socket.on('start', msg => {
@@ -51,6 +60,14 @@ function preload() {
 		otherAccount = pem;
 		if (!waiting) {
 			//send transaction to join the channel
+			statechannelInstance.joinChannel.call({
+				from: account
+			}, function(err, res) {
+				if (err) console.log(err)
+				if (res && !err) {
+					console.log('I joined the channel with my address being : ' + res)
+				}
+			})
 		}
 	})
 
@@ -82,24 +99,37 @@ function preload() {
 			console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner);
 			if (mySignedStates.length == hisSignedStates.length) {
 				//send transaction to close the state channel
-				let a1 = mySignedStates[4].signature;
-				let a2 = hisSignedStates[4].signature;
+				var l = mySignedStates.length - 1
+				let a1 = mySignedStates[l].signature;
+				let a2 = hisSignedStates[l].signature;
 
-				let sha = web3.sha3(mySignedStates[4].message)
+				let sha = web3.sha3(mySignedStates[l].message)
 
 				let r1 = '0x' + a1.substring(2, 66);
 				let s1 = '0x' + a1.substring(66, 130);
-				let v1 = web3.toDecimal('0x' + a1.substring(130,132));
+				let v1 = web3.toDecimal('0x' + a1.substring(130, 132));
 
 				let r2 = '0x' + a2.substring(2, 66);
 				let s2 = '0x' + a2.substring(66, 130);
-				let v2 = web3.toDecimal('0x' + a2.substring(130,132));
+				let v2 = web3.toDecimal('0x' + a2.substring(130, 132));
 
-				console.log("*************************************************************")
+
 				console.log(`"${sha}", "${r1}", "${s1}", ${v1}, "${r2}", "${s2}", ${v2}`)
 
 				//send the last state to the other player
 				socket.emit('last-move', mySignedStates[mySignedStates.length - 1])
+
+				statechannelInstance.closeChannel.call(
+					sha, r1, s1, v1, r2, s2, v2, {
+						from: account
+					},
+					function(err, res) {
+						if (err) console.log(err)
+						if (res && !err) {
+							console.log('Channel has been closed with the final state' + res)
+						}
+					})
+
 			}
 		}
 	})
@@ -189,7 +219,6 @@ function update(i, j) {
 			message,
 			signature
 		})
-		console.log("{\n\t" + message + "\n\t" + signature + "\n}")
 		socket.emit('turn', {
 			m: message,
 			s: signature,
