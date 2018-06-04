@@ -16,7 +16,11 @@ app.use(function(req, res, next) {
 
 
 app.get('/', function(req, res) {
-	res.sendFile(__dirname + '/index.html');
+	res.sendFile(__dirname + '/public/index.html');
+});
+
+app.get('/login', function(req, res) {
+	res.sendFile(__dirname + '/public/login.html');
 });
 
 io.on('connection', function(socket) {

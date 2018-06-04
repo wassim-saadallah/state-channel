@@ -23,9 +23,9 @@ function preload() {
 	account = new URL(window.location.href).searchParams.get('a');
 
 	//unlocking account
-	console.log('unlocking account...')
+	console.log('unlocking account : ...' + account)
 	let unlocked = web3.personal.unlockAccount(account, "wassim", 0)
-	if(unlocked) console.log('unlocked');	
+	if (unlocked) console.log('unlocked');
 	else console.log('error unlocking the accounts');
 
 
@@ -36,20 +36,23 @@ function preload() {
 
 	socket.on('waiting', msg => {
 		console.log(msg);
+		$('#text2').html(msg + ' ...')
 		waiting = true;
 		//send transaction to open state channel
-		statechannelInstance.openChannel.call({
-			from: account
-		}, function(err, res) {
-			if (err) console.log(err)
-			if (res && !err) {
-				console.log('I opened the channel and my address being : ' + res)
-			}
-		})
+		statechannelInstance.openChannel({
+				from: account,
+				gas: 1000000
+			},
+			function(err, res) {
+				if (err) console.log(err)
+				console.log(res);
+			})
 	})
 
 	socket.on('start', msg => {
 		console.log('the game has started ' + msg.msg + " char = " + msg.char);
+		$('#text').html('the game has started ' + msg.msg + " char = " + msg.char)
+		$('#text2').html('')
 		myTurn = msg.turn;
 		char = msg.char;
 		socket.emit('address', account);
@@ -60,14 +63,14 @@ function preload() {
 		otherAccount = pem;
 		if (!waiting) {
 			//send transaction to join the channel
-			statechannelInstance.joinChannel.call({
-				from: account
-			}, function(err, res) {
-				if (err) console.log(err)
-				if (res && !err) {
-					console.log('I joined the channel with my address being : ' + res)
-				}
-			})
+			statechannelInstance.joinChannel({
+					from: account,
+					gas: 1000000
+				},
+				function(err, res) {
+					if (err) console.log(err)
+					console.log(res);
+				})
 		}
 	})
 
@@ -97,6 +100,7 @@ function preload() {
 
 		if (checkWinner()) {
 			console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner);
+			$('#text').html('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)
 			if (mySignedStates.length == hisSignedStates.length) {
 				//send transaction to close the state channel
 				var l = mySignedStates.length - 1
@@ -119,17 +123,14 @@ function preload() {
 				//send the last state to the other player
 				socket.emit('last-move', mySignedStates[mySignedStates.length - 1])
 
-				statechannelInstance.closeChannel.call(
-					sha, r1, s1, v1, r2, s2, v2, {
-						from: account
+				statechannelInstance.closeChannel(sha, r1, s1, v1, r2, s2, v2, {
+						from: account,
+						gas: 1000000
 					},
 					function(err, res) {
 						if (err) console.log(err)
-						if (res && !err) {
-							console.log('Channel has been closed with the final state' + res)
-						}
-					})
-
+						console.log(res);
+					});
 			}
 		}
 	})
@@ -150,7 +151,11 @@ function verified(msg) {
 
 function setup() {
 	// put setup code here
-	createCanvas(600, 600);
+	let cvs = createCanvas(600, 600);
+	cvs.parent('sketch-holder');
+	  var x = (windowWidth - width) / 2;
+  var y = (windowHeight - height) / 2;
+  cvs.position(x, y);
 	gs = width / 3;
 	for (let i = 0; i < 3; i++) {
 		for (let j = 0; j < 3; j++) {
@@ -165,8 +170,9 @@ function setup() {
 
 function draw() {
 	// put drawing code here
-	background(51);
+	background(51,0,0, 0);
 	for (let i = 1; i < 3; i++) {
+		strokeWeight(10)
 		line(0, gs * i, width, gs * i);
 		line(gs * i, 0, gs * i, height);
 	}
@@ -229,6 +235,7 @@ function update(i, j) {
 	myTurn = !myTurn;
 	if (checkWinner()) {
 		console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner);
+		$('#text').html('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)
 	}
 }
 
