@@ -15,22 +15,24 @@ let signedMove;
 
 function preload() {
 
+
+	let url = new URL(window.location.href);
 	//connect to node
-	console.log('establishing connection with ethereum node...')
-	web3 = new Web3(new Web3.providers.HttpProvider("http://localhost:8545"));
+	console.log('Establishing connection with ethereum node...')
+	web3 = new Web3(new Web3.providers.HttpProvider(url.origin.substring(0, url.origin.length - 4) + "8545"));
 
 	//get account address and unlock it
-	account = new URL(window.location.href).searchParams.get('a');
+	account = url.searchParams.get('a');
 
 	//unlocking account
-	console.log('unlocking account : ...' + account)
+	console.log('Unlocking account ' + account + ' ...')
 	let unlocked = web3.personal.unlockAccount(account, "wassim", 0)
-	if (unlocked) console.log('unlocked');
+	if (unlocked) console.log('Account unlocked');
 	else console.log('error unlocking the accounts');
 
 
 	//connect to socketIO server
-	console.log('establishing connection with socket server...');
+	console.log('Establishing connection with socket server...');
 
 	socket = io();
 
@@ -45,12 +47,11 @@ function preload() {
 			},
 			function(err, res) {
 				if (err) console.log(err)
-				console.log(res);
+				console.log('opening channel, transaction address : ' + res);
 			})
 	})
 
 	socket.on('start', msg => {
-		console.log('the game has started ' + msg.msg + " char = " + msg.char);
 		$('#text').html('the game has started ' + msg.msg + " char = " + msg.char)
 		$('#text2').html('')
 		myTurn = msg.turn;
@@ -59,7 +60,7 @@ function preload() {
 	})
 
 	socket.on('address', pem => {
-		console.log('recieved address \n' + pem);
+		console.log('recieved The other player\'s address : ' + pem);
 		otherAccount = pem;
 		if (!waiting) {
 			//send transaction to join the channel
@@ -69,21 +70,23 @@ function preload() {
 				},
 				function(err, res) {
 					if (err) console.log(err)
-					console.log(res);
+					console.log('joining channel, transaction address : ' + res);
 				})
 		}
 	})
 
 	socket.on('turn', msg => {
 
+
+		console.log('the signed message : ', msg);
 		console.log('trying to verify the signed message ...');
-		console.log(msg);
+		
 
 		if (verified(msg)) {
-			console.log(hisSignedStates);
+			console.log('verified');
 			let b = msg.m.split('');
 			for (let i = 0; i < 9; i++) {
-				console.log(b[i]);
+				//console.log(b[i]);
 				board[i].char = b[i] == "_" ? "" : b[i];
 			}
 			myTurn = !myTurn;
@@ -99,8 +102,7 @@ function preload() {
 		}
 
 		if (checkWinner()) {
-			console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner);
-			$('#text').html('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)
+			$('#text').html('PLAYER ' + winner + ' WON')
 			if (mySignedStates.length == hisSignedStates.length) {
 				//send transaction to close the state channel
 				var l = mySignedStates.length - 1
@@ -118,7 +120,7 @@ function preload() {
 				let v2 = web3.toDecimal('0x' + a2.substring(130, 132));
 
 
-				console.log(`"${sha}", "${r1}", "${s1}", ${v1}, "${r2}", "${s2}", ${v2}`)
+				//console.log(`"${sha}", "${r1}", "${s1}", ${v1}, "${r2}", "${s2}", ${v2}`)
 
 				//send the last state to the other player
 				socket.emit('last-move', mySignedStates[mySignedStates.length - 1])
@@ -129,7 +131,7 @@ function preload() {
 					},
 					function(err, res) {
 						if (err) console.log(err)
-						console.log(res);
+						console.log('closing channel transaction address : ' + res);
 					});
 			}
 		}
@@ -144,14 +146,14 @@ function verified(msg) {
 	//TODO : add verification
 	let cond = false;
 	let sha = web3.sha3(msg.m);
-	console.log(sha, msg.s)
+	//console.log(sha, msg.s)
 	return web3.personal.ecRecover(sha, msg.s) == otherAccount;
 }
 
 
 function setup() {
 	// put setup code here
-	let cvs = createCanvas(600, 600);
+	let cvs = createCanvas(300, 300);
 	cvs.parent('sketch-holder');
 	  var x = (windowWidth - width) / 2;
   var y = (windowHeight - height) / 2;
@@ -181,7 +183,7 @@ function draw() {
 		push();
 		translate(gs * (b.j + 0.5), gs * (b.i + 0.65));
 		textAlign(CENTER);
-		textSize(100);
+		textSize(50);
 		text(b.char, 0, 0);
 		pop();
 	}
@@ -234,8 +236,7 @@ function update(i, j) {
 
 	myTurn = !myTurn;
 	if (checkWinner()) {
-		console.log('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner);
-		$('#text').html('WINNER WINNER CHIKEN WINNER FOR PLAYER ' + winner)
+		$('#text').html('PLAYER ' + winner + ' WON')
 	}
 }
 
